@@ -1,0 +1,355 @@
+{
+  "name": "Count check · Daily source vs destination",
+  "nodes": [
+    {
+      "id": "f38634bb-0a1c-4657-a410-791da81d1d2d",
+      "name": "Note · overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -360
+      ],
+      "parameters": {
+        "content": "## Daily count check for missing, extra and mismatched orders\n\nEvery morning this workflow reads yesterday's orders at a source and the rows written at a destination, matches them on `order_id` and sends one email listing what is missing, what is extra and which fields differ. The email comes even on clean days, so a morning without it means the check itself has stopped.\n\n### How it works\n1. **Every morning at 07:00** starts the run in your instance's time zone.\n2. **Set the window** covers yesterday for the source, and yesterday 00:00 to 02:00 today for the destination, so a row written just after midnight still counts.\n3. **Read the source** and **Read the destination** get the rows from two data tables.\n4. **Compare on order_id** matches the rows and skips the columns the destination adds itself.\n5. **Count and write the message** drops rows for other days and writes the email.\n6. **Send the daily message** sends the email.\n\n### Setup\n1. Create two data tables: `count_check_source` with `order_id` (string), `order_created_at` (date), `amount` (number) and `status` (string); `count_check_destination` with the same columns plus `written_at` (date).\n2. In **Set the window**, set `alert_to` and `alert_from`; in **Send the daily message**, pick your SMTP credential.\n3. Publish.\n\nTo use your own systems, replace the two Read nodes, keep `order_id` and `order_created_at`, and add the columns your destination fills in by itself to Fields to Skip Comparing. Keep Always Output Data on: without it an empty or clean day sends no email.\n\nTested on self-hosted n8n 2.43.6.\n\nA paid version that emails only on bad days, watched by a second workflow, is in Krafera Silent Failure Watch (Core and Full versions): PAID_URL",
+        "height": 740,
+        "width": 640,
+        "color": 1
+      }
+    },
+    {
+      "id": "822d3c3d-4c44-44ee-a6d2-9b1dc91a8f9b",
+      "name": "Note · when, which day, who gets it",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -360
+      ],
+      "parameters": {
+        "content": "## When, which day, who gets it\nRuns at 07:00 in the instance time zone. Set the window holds alert_to and alert_from, yesterday's date, the source range (yesterday 00:00 to today 00:00) and destination_to, 02:00 today: the margin for rows written just after midnight.",
+        "height": 740,
+        "width": 380,
+        "color": 7
+      }
+    },
+    {
+      "id": "d1058815-8dd9-4601-a5bb-71e63e690d01",
+      "name": "Note · read both sides",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        350,
+        -360
+      ],
+      "parameters": {
+        "content": "## Read both sides\nSource rows by order_created_at, destination rows by written_at. Always Output Data is on for both, so an empty day still reaches the email. Swap these two nodes for your own systems and keep order_id and order_created_at.",
+        "height": 740,
+        "width": 200,
+        "color": 7
+      }
+    },
+    {
+      "id": "81ab61e0-2d47-4742-aa6c-a220cf7eb669",
+      "name": "Note · compare, count, send",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        560,
+        -360
+      ],
+      "parameters": {
+        "content": "## Compare, count, send\nCompare Datasets matches on order_id and skips id, createdAt, updatedAt and written_at. The Code node reads outputs 0, 2 and 3 by index and drops rows for other days and the empty item. The email goes out every day.",
+        "height": 740,
+        "width": 600,
+        "color": 7
+      }
+    },
+    {
+      "id": "707dff56-18df-4ea3-a8ad-22bf4c346198",
+      "name": "Every morning at 07:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 7,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "36c1dcea-3d41-4e72-aab7-e7fca8908d51",
+      "name": "Set the window",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        100
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3e8c1c1e-cce4-4f3d-ac6a-0fad23a45fa2",
+              "name": "alert_to",
+              "value": "ops@example.test",
+              "type": "string"
+            },
+            {
+              "id": "8a6fa2d6-8a7d-4657-af32-910c59326900",
+              "name": "alert_from",
+              "value": "count-check@example.test",
+              "type": "string"
+            },
+            {
+              "id": "ac178419-3bc8-448a-a43f-a084e1a0e273",
+              "name": "day",
+              "value": "={{ $now.minus({ days: 1 }).toFormat('yyyy-LL-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "7c79fa56-b63c-4946-a545-1201a1274237",
+              "name": "from",
+              "value": "={{ $now.startOf('day').minus({ days: 1 }).toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "96653a50-7e06-48f3-a959-6991111d4cb9",
+              "name": "to",
+              "value": "={{ $now.startOf('day').toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "00748bae-1806-41b7-a556-9bb86d87c167",
+              "name": "destination_to",
+              "value": "={{ $now.startOf('day').plus({ hours: 2 }).toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2ceac89e-a78d-4a61-a4f7-01ed2147abe0",
+      "name": "Read the source",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "alwaysOutputData": true,
+      "position": [
+        400,
+        0
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "count_check_source"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "order_created_at",
+              "condition": "gte",
+              "keyValue": "={{ $json.from }}"
+            },
+            {
+              "keyName": "order_created_at",
+              "condition": "lt",
+              "keyValue": "={{ $json.to }}"
+            }
+          ]
+        },
+        "returnAll": true
+      }
+    },
+    {
+      "id": "dadc4690-a044-4d41-ace6-e7e08d01c4d5",
+      "name": "Read the destination",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "alwaysOutputData": true,
+      "position": [
+        400,
+        200
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "count_check_destination"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "written_at",
+              "condition": "gte",
+              "keyValue": "={{ $json.from }}"
+            },
+            {
+              "keyName": "written_at",
+              "condition": "lt",
+              "keyValue": "={{ $json.destination_to }}"
+            }
+          ]
+        },
+        "returnAll": true
+      }
+    },
+    {
+      "id": "37856d7b-1045-434b-ac56-49e40772e8c3",
+      "name": "Compare on order_id",
+      "type": "n8n-nodes-base.compareDatasets",
+      "typeVersion": 2.3,
+      "alwaysOutputData": true,
+      "position": [
+        600,
+        100
+      ],
+      "parameters": {
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "order_id",
+              "field2": "order_id"
+            }
+          ]
+        },
+        "resolve": "includeBoth",
+        "options": {
+          "skipFields": "id, createdAt, updatedAt, written_at"
+        }
+      }
+    },
+    {
+      "id": "7b05b750-cbf5-4ab5-a42b-ec01719c6b43",
+      "name": "Count and write the message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        100
+      ],
+      "parameters": {
+        "jsCode": "\nconst w = $('Set the window').first().json;\nconst real = (items) => items.map((i) => i.json).filter((r) => r.order_id !== undefined && r.order_id !== null && r.order_id !== '');\nconst cmp = $('Compare on order_id');\nconst from = Date.parse(w.from), to = Date.parse(w.to);\n// A destination row created outside the day belongs to another day's check (the 2-hour margin reads a little past midnight)\nconst otherDay = (r) => { const t = Date.parse(r.order_created_at); return Number.isFinite(t) && (t < from || t >= to); };\n\nconst source = real($('Read the source').all());\nconst destination = real($('Read the destination').all()).filter((r) => !otherDay(r));\nconst sourceIds = new Set(source.map((r) => String(r.order_id)));\n\nconst missing = real(cmp.all(0)).map((r) => String(r.order_id)).sort();\nconst extra = real(cmp.all(3)).filter((r) => !otherDay(r))\n  .map((r) => ({ order_id: String(r.order_id), why: sourceIds.has(String(r.order_id)) ? 'second copy' : 'not in the source' }))\n  .sort((x, y) => x.order_id.localeCompare(y.order_id));\nconst different = cmp.all(2).map((i) => i.json)\n  .map((d) => ({ order_id: String(d.keys.order_id), fields: Object.fromEntries(Object.entries(d.different).map(([k, v]) => [k, [v.inputA, v.inputB]])) }))\n  .sort((x, y) => x.order_id.localeCompare(y.order_id));\n\nconst lines = [\n  'Daily count check for ' + w.day + '.',\n  'Source: ' + source.length + ' orders. Destination: ' + destination.length + ' rows (read up to 02:00 today).',\n  '',\n];\nif (source.length === 0) lines.push('The source returned no orders for this day. If that is unusual, check the source connection or its trigger.', '');\nif (destination.length === 0 && source.length > 0) lines.push('The destination returned no rows for this day.', '');\nif (!missing.length && !extra.length && !different.length) lines.push('Nothing missing, nothing extra, nothing different.');\nif (missing.length) lines.push('Missing at the destination (' + missing.length + '): ' + missing.join(', '));\nif (extra.length) lines.push('Only at the destination (' + extra.length + '): ' + extra.map((e) => e.order_id + ' (' + e.why + ')').join(', '));\nif (different.length) {\n  lines.push('Different (' + different.length + '):');\n  for (const d of different) lines.push('- ' + d.order_id + ': ' + Object.entries(d.fields).map(([k, [a, b]]) => k + ' ' + a + ' -> ' + b).join(', '));\n}\nlines.push('', 'This message is sent every day, also when everything matches. If it does not arrive, the check itself has stopped.');\n\nreturn [{ json: {\n  day: w.day, source_count: source.length, destination_count: destination.length,\n  missing, extra, different,\n  subject: 'Count check ' + w.day + ': ' + missing.length + ' missing, ' + extra.length + ' extra, ' + different.length + ' different',\n  text: lines.join('\\n'),\n} }];"
+      }
+    },
+    {
+      "id": "92306e94-7947-433f-a900-5cdeff04153d",
+      "name": "Send the daily message",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1000,
+        100
+      ],
+      "parameters": {
+        "fromEmail": "={{ $('Set the window').first().json.alert_from }}",
+        "toEmail": "={{ $('Set the window').first().json.alert_to }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "smtp": {
+          "name": "SMTP account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every morning at 07:00": {
+      "main": [
+        [
+          {
+            "node": "Set the window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set the window": {
+      "main": [
+        [
+          {
+            "node": "Read the source",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read the destination",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the source": {
+      "main": [
+        [
+          {
+            "node": "Compare on order_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the destination": {
+      "main": [
+        [
+          {
+            "node": "Compare on order_id",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Compare on order_id": {
+      "main": [
+        [
+          {
+            "node": "Count and write the message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count and write the message": {
+      "main": [
+        [
+          {
+            "node": "Send the daily message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
