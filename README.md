@@ -25,8 +25,9 @@ This message is sent every day, also when everything matches. If it does not arr
 2. **Set the window** covers yesterday for the source, and yesterday 00:00 to 02:00 today for the destination, so a row written just after midnight still counts.
 3. **Read the source** and **Read the destination** get the rows from two data tables.
 4. **Compare on order_id** matches the rows and skips the columns the destination adds itself (`id, createdAt, updatedAt, written_at`).
-5. **Count and write the message** reads outputs 0, 2 and 3 of Compare Datasets (In A only, Different, In B only), drops rows for other days and writes the email.
-6. **Send the daily message** sends it.
+5. **Wait for every output** joins the four outputs of Compare Datasets, so the next node runs once a day on n8n 2.x and on 3.0.
+6. **Count and write the message** reads outputs 0, 2 and 3 of Compare Datasets (In A only, Different, In B only), drops rows for other days and writes the email.
+7. **Send the daily message** sends it.
 
 ## Setup
 
@@ -39,14 +40,18 @@ To use your own systems, replace the two Read nodes, keep `order_id` and `order_
 
 ## Why Always Output Data is on
 
-Without it the check itself can go quiet. Two control runs showed it:
+Without it the check itself can go quiet. Two control runs showed it, on n8n 2.43.6 and on 3.0.1:
 
-- Off on Compare Datasets, clean day: the execution succeeded, the Code node never ran, no email.
+- Off on Compare Datasets, empty day: the execution succeeded, the Code node never ran, no email.
 - Off on the two reads, empty day: the execution succeeded, no email.
+
+## Why Wait for every output is there
+
+With Always Output Data on, n8n 2.x puts one empty item on the first output of Compare Datasets (In A only) when that output is empty. n8n 3.0 does that only when all four outputs are empty. A Code node wired to the first output alone would then skip every day with nothing missing: a clean day, or a day with only extra or different rows. Wait for every output joins the four outputs, so the Code node runs once a day on both versions.
 
 ## Tests
 
-Tested on self-hosted n8n 2.43.6 (Docker) with a local mail catcher: mixed day, clean day, only an extra row, both sides empty, destination empty, and the two control runs above.
+Tested on self-hosted n8n 2.43.6 and on the 3.0.1 pre-release (Docker) with a local mail catcher: mixed day, clean day, only an extra row, both sides empty, destination empty, and the two control runs above. 12 of 12 checks passed on each version.
 
 ## License
 

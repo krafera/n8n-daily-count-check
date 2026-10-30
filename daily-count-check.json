@@ -11,7 +11,7 @@
         -360
       ],
       "parameters": {
-        "content": "## Daily count check for missing, extra and mismatched orders\n\nEvery morning this workflow reads yesterday's orders at a source and the rows written at a destination, matches them on `order_id` and sends one email listing what is missing, what is extra and which fields differ. The email comes even on clean days, so a morning without it means the check itself has stopped.\n\n### How it works\n1. **Every morning at 07:00** starts the run in your instance's time zone.\n2. **Set the window** covers yesterday for the source, and yesterday 00:00 to 02:00 today for the destination, so a row written just after midnight still counts.\n3. **Read the source** and **Read the destination** get the rows from two data tables.\n4. **Compare on order_id** matches the rows and skips the columns the destination adds itself.\n5. **Count and write the message** drops rows for other days and writes the email.\n6. **Send the daily message** sends the email.\n\n### Setup\n1. Create two data tables: `count_check_source` with `order_id` (string), `order_created_at` (date), `amount` (number) and `status` (string); `count_check_destination` with the same columns plus `written_at` (date).\n2. In **Set the window**, set `alert_to` and `alert_from`; in **Send the daily message**, pick your SMTP credential.\n3. Publish.\n\nTo use your own systems, replace the two Read nodes, keep `order_id` and `order_created_at`, and add the columns your destination fills in by itself to Fields to Skip Comparing. Keep Always Output Data on: without it an empty or clean day sends no email.\n\nTested on self-hosted n8n 2.43.6.\n\nA paid version that emails only on bad days, watched by a second workflow, is in Krafera Silent Failure Watch (Core and Full versions): PAID_URL",
+        "content": "## Daily count check for missing, extra and mismatched orders\n\nEvery morning this workflow reads yesterday's orders at a source and the rows written at a destination, matches them on `order_id` and sends one email listing what is missing, what is extra and which fields differ. The email comes even on clean days, so a morning without it means the check itself has stopped.\n\n### How it works\n1. **Every morning at 07:00** starts the run in your instance's time zone.\n2. **Set the window** covers yesterday for the source, and yesterday 00:00 to 02:00 today for the destination, so a row written just after midnight still counts.\n3. **Read the source** and **Read the destination** get the rows from two data tables.\n4. **Compare on order_id** matches the rows and skips the columns the destination adds itself.\n5. **Wait for every output** joins the four Compare outputs, so the count runs once a day on n8n 2.x and 3.0.\n6. **Count and write the message** drops rows for other days and writes the email.\n7. **Send the daily message** sends the email.\n\n### Setup\n1. Create two data tables: `count_check_source` with `order_id` (string), `order_created_at` (date), `amount` (number) and `status` (string); `count_check_destination` with the same columns plus `written_at` (date).\n2. In **Set the window**, set `alert_to` and `alert_from`; in **Send the daily message**, pick your SMTP credential.\n3. Publish.\n\nTo use your own systems, replace the two Read nodes, keep `order_id` and `order_created_at`, and add the columns your destination fills in by itself to Fields to Skip Comparing. Keep Always Output Data on: without it an empty day sends no email.\n\nTested on self-hosted n8n 2.43.6 and 3.0.1.\n\nA paid version that emails only on bad days, watched by a second workflow, is in Krafera Silent Failure Watch (Core and Full versions): https://krafera.gumroad.com/l/lltue",
         "height": 740,
         "width": 640,
         "color": 1
@@ -59,9 +59,9 @@
         -360
       ],
       "parameters": {
-        "content": "## Compare, count, send\nCompare Datasets matches on order_id and skips id, createdAt, updatedAt and written_at. The Code node reads outputs 0, 2 and 3 by index and drops rows for other days and the empty item. The email goes out every day.",
+        "content": "## Compare, count, send\nCompare Datasets matches on order_id and skips id, createdAt, updatedAt and written_at. Wait for every output joins its four outputs: n8n 3.0 no longer sends an empty item to the first output when another output has items, so without it a day with nothing missing, clean days included, would send nothing. The Code node reads outputs 0, 2 and 3 by index and drops rows for other days and the empty item. The email goes out every day.",
         "height": 740,
-        "width": 600,
+        "width": 800,
         "color": 7
       }
     },
@@ -238,12 +238,25 @@
       }
     },
     {
+      "id": "e2e8a168-25fb-4bbb-84d2-07a456c3eb96",
+      "name": "Wait for every output",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        800,
+        100
+      ],
+      "parameters": {
+        "numberInputs": 4
+      }
+    },
+    {
       "id": "7b05b750-cbf5-4ab5-a42b-ec01719c6b43",
       "name": "Count and write the message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        800,
+        1000,
         100
       ],
       "parameters": {
@@ -256,7 +269,7 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [
-        1000,
+        1200,
         100
       ],
       "parameters": {
@@ -330,9 +343,30 @@
       "main": [
         [
           {
-            "node": "Count and write the message",
+            "node": "Wait for every output",
             "type": "main",
             "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait for every output",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Wait for every output",
+            "type": "main",
+            "index": 2
+          }
+        ],
+        [
+          {
+            "node": "Wait for every output",
+            "type": "main",
+            "index": 3
           }
         ]
       ]
@@ -342,6 +376,17 @@
         [
           {
             "node": "Send the daily message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for every output": {
+      "main": [
+        [
+          {
+            "node": "Count and write the message",
             "type": "main",
             "index": 0
           }
